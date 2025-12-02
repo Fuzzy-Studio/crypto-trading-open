@@ -1,0 +1,103 @@
+# 网格波动率扫描器 - Binance Top 50 配置
+# 只监控前50个主流交易对，避免 "Too many open files" 错误
+
+# 🔥 默认配置
+default:
+  grid_width_percent: 50.0
+  grid_interval_percent: 0.1
+
+# 🎯 监控的交易对列表（USDT 交易对）
+monitored_symbols:
+  # 主流币种 (Top 10)
+  - BTC/USDT
+  - ETH/USDT
+  - BNB/USDT
+  - SOL/USDT
+  - XRP/USDT
+  - ADA/USDT
+  - DOGE/USDT
+  - AVAX/USDT
+  - DOT/USDT
+  - MATIC/USDT
+
+  # 热门 DeFi (10)
+  - LINK/USDT
+  - UNI/USDT
+  - AAVE/USDT
+  - SNX/USDT
+  - CRV/USDT
+  - SUSHI/USDT
+  - COMP/USDT
+  - MKR/USDT
+  - YFI/USDT
+  - 1INCH/USDT
+
+  # Layer 1/Layer 2 (10)
+  - ATOM/USDT
+  - NEAR/USDT
+  - FTM/USDT
+  - ALGO/USDT
+  - ONE/USDT
+  - OP/USDT
+  - ARB/USDT
+  - APT/USDT
+  - SUI/USDT
+  - SEI/USDT
+
+  # 热门 Meme (10)
+  - SHIB/USDT
+  - PEPE/USDT
+  - FLOKI/USDT
+  - BONK/USDT
+  - WIF/USDT
+  - MEME/USDT
+  - DEGEN/USDT
+  - RATS/USDT
+  - ORDI/USDT
+  - SATS/USDT
+
+  # 其他热门 (10)
+  - LTC/USDT
+  - BCH/USDT
+  - ETC/USDT
+  - XLM/USDT
+  - TRX/USDT
+  - VET/USDT
+  - FIL/USDT
+  - THETA/USDT
+  - EOS/USDT
+  - IOTA/USDT
+
+# 🪙 个别币种配置
+BTC:
+  grid_width_percent: 20.0
+  grid_interval_percent: 0.03
+
+ETH:
+  grid_width_percent: 20.0
+  grid_interval_percent: 0.03
+
+SOL:
+  grid_width_percent: 20.0
+  grid_interval_percent: 0.03
+
+BNB:
+  grid_width_percent: 20.0
+  grid_interval_percent: 0.03
+
+# 🔧 扫描器配置
+scanner_config:
+  reconnect_interval: 5
+  price_update_timeout: 30
+  min_24h_volume_usdc: 100000
+  scan_duration_seconds: 3600
+  order_value_usdc: 10
+  fee_rate_percent: 0.004
+  ui_refresh_interval: 0.5
+  log_queue_size: 20
+  min_cycles_to_display: 0
+  top_n_results: 50
+  apr_time_window_minutes: 5
+  apr_alert_threshold: 1500.0
+  apr_alert_max_count: 3
+  apr_alert_cooldown_seconds: 300

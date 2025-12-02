@@ -135,10 +135,13 @@ class GridVolatilityScanner:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
 
+            # 🔥 保存原始配置数据（用于读取 monitored_symbols 等字段）
+            self.config_data = config
+
             # 提取市场配置
             self.market_configs = {
                 k: v for k, v in config.items()
-                if k not in ['default', 'scanner_config']
+                if k not in ['default', 'scanner_config', 'monitored_symbols']
             }
 
             # 默认配置
@@ -163,12 +166,34 @@ class GridVolatilityScanner:
 
     async def _get_all_markets(self) -> List[Dict]:
         """
-        获取所有市场
+        获取所有市场（支持配置文件白名单过滤）
 
         Returns:
             市场信息列表
         """
         try:
+            # 🔥 检查配置文件中是否指定了 monitored_symbols 白名单
+            monitored_symbols = self.config_data.get('monitored_symbols', [])
+
+            if monitored_symbols:
+                # 使用白名单模式：只监控配置文件中指定的交易对
+                logger.info(f"✅ 使用白名单模式: 配置文件指定了 {len(monitored_symbols)} 个交易对")
+
+                # 直接构建市场列表（不需要查询交易所）
+                filtered_markets = []
+                for symbol in monitored_symbols:
+                    market_data = {
+                        'symbol': symbol,
+                        'info': {}
+                    }
+                    filtered_markets.append(market_data)
+
+                logger.info(f"🎯 白名单模式: 将监控 {len(filtered_markets)} 个交易对")
+                return filtered_markets
+
+            # 原有逻辑：获取所有市场并过滤
+            logger.info("📡 未配置白名单，使用自动发现模式（获取所有市场）")
+
             # 获取交易所信息（返回ExchangeInfo对象）
             exchange_info = await self.adapter.get_exchange_info()
 
@@ -421,16 +446,23 @@ class GridVolatilityScanner:
         # 参考：run_arbitrage_monitor.py 的实现
 
         # 🔥 构建symbol映射表（优化性能，避免每次都遍历）
-        # ticker.symbol (短格式) → monitor_symbol (标准格式)
+        # ticker.symbol (交易所原始格式) → monitor_symbol (标准格式)
         symbol_map = {}
         for monitor_symbol in symbols_to_monitor:
-            # 提取基础符号
-            base = monitor_symbol.split(
-                '-')[0] if '-' in monitor_symbol else monitor_symbol
-            # 建立映射：基础符号 → 监控符号
-            symbol_map[base] = monitor_symbol
-            # 同时支持完整符号匹配
+            # 1. 完整符号匹配（优先级最高）
             symbol_map[monitor_symbol] = monitor_symbol
+
+            # 2. Lighter 格式: "BTC-USD" → "BTC"
+            if '-' in monitor_symbol:
+                base = monitor_symbol.split('-')[0]
+                symbol_map[base] = monitor_symbol
+
+            # 3. Binance 格式: "BTC/USDT" → "BTCUSDT"
+            if '/' in monitor_symbol:
+                binance_format = monitor_symbol.replace('/', '')
+                symbol_map[binance_format] = monitor_symbol
+                # 同时支持小写（Binance WebSocket 可能返回小写）
+                symbol_map[binance_format.lower()] = monitor_symbol
 
         logger.info(f"📋 构建symbol映射表，共 {len(symbol_map)} 个映射")
 
@@ -480,20 +512,13 @@ class GridVolatilityScanner:
             for idx, symbol in enumerate(batch_symbols):
                 try:
                     absolute_idx = start_idx + idx
-                    
-                    if absolute_idx == 0:
-                        # 🔥 第一个symbol：注册统一回调
-                        await self.adapter.subscribe_ticker(
-                            symbol=symbol,
-                            callback=unified_ticker_callback
-                        )
-                        logger.info(f"✅ {symbol} (首次注册统一回调)")
-                    else:
-                        # 🔥 后续symbol：传None复用统一回调
-                        await self.adapter.subscribe_ticker(
-                            symbol=symbol,
-                            callback=None
-                        )
+
+                    # 🔥 每个订阅都传入统一回调函数
+                    # 这样可以兼容不同交易所的实现（Binance/Lighter等）
+                    await self.adapter.subscribe_ticker(
+                        symbol=symbol,
+                        callback=unified_ticker_callback
+                    )
 
                     subscription_count += 1
                     # 🔥 记录成功订阅的代币
@@ -596,6 +621,13 @@ class GridVolatilityScanner:
                             total_markets=len(self.virtual_grids),
                             active_markets=len(self.virtual_grids)
                         )
+
+            # 🔥 更新虚拟网格的24h成交量（如果ticker包含此数据）
+            if symbol in self.virtual_grids and ticker:
+                grid = self.virtual_grids[symbol]
+                # ticker.quote_volume 是计价货币（USDT/USDC）的24h成交量
+                if hasattr(ticker, 'quote_volume') and ticker.quote_volume:
+                    grid.volume_24h_usdc = Decimal(str(ticker.quote_volume))
 
             # 调用原有的价格更新处理
             await self._price_update_callback(symbol, current_price)
