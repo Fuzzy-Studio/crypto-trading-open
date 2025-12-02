@@ -43,6 +43,7 @@ logs/
 *.log
 .claude/
 CLAUDE.md
+docs/
 
 # Environment variables
 .env
