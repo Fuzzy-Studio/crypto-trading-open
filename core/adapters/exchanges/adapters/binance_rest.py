@@ -93,7 +93,58 @@ class BinanceRest(BinanceBase):
                         self.logger.error(f"API调用最终失败: {str(e)}")
         
         raise last_error
-    
+
+    def _create_mock_order(
+        self,
+        symbol: str,
+        side: OrderSide,
+        order_type: OrderType,
+        amount: Decimal,
+        price: Optional[Decimal] = None
+    ) -> OrderData:
+        """
+        创建模拟订单（用于测试）
+
+        Args:
+            symbol: 交易对
+            side: 订单方向
+            order_type: 订单类型
+            amount: 数量
+            price: 价格
+
+        Returns:
+            模拟的订单数据
+        """
+        import uuid
+
+        # 生成模拟订单ID
+        mock_order_id = f"MOCK_{uuid.uuid4().hex[:16].upper()}"
+
+        # 创建模拟订单数据
+        mock_order = OrderData(
+            order_id=mock_order_id,
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            amount=amount,
+            price=price or Decimal('0'),
+            filled=Decimal('0'),
+            remaining=amount,
+            status=OrderStatus.OPEN,
+            timestamp=int(time.time() * 1000),
+            average_price=None,
+            fee=Decimal('0'),
+            fee_currency='USDT'
+        )
+
+        if self.logger:
+            self.logger.info(
+                f"🎮 [模拟订单] ID: {mock_order_id} | "
+                f"{symbol} {side.value} {amount}@{price}"
+            )
+
+        return mock_order
+
     # ==================== 市场数据接口 ====================
     
     async def get_exchange_info(self) -> ExchangeInfo:
@@ -308,15 +359,24 @@ class BinanceRest(BinanceBase):
         order_type: OrderType,
         amount: Decimal,
         price: Optional[Decimal] = None,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        batch_mode: bool = False  # 🔥 兼容性参数（Binance不使用批量模式）
     ) -> OrderData:
         """创建订单"""
         try:
             mapped_symbol = self.map_symbol_to_binance(symbol)
-            
+
             # 准备订单参数
             order_params = params or {}
-            
+
+            # 🎮 模拟交易模式检查
+            simulation_mode = getattr(self.config, 'simulation_mode', False)
+            if simulation_mode:
+                if self.logger:
+                    self.logger.info(f"🎮 [模拟模式] 创建订单: {symbol} {side.value} {amount}@{price}")
+                return self._create_mock_order(symbol, side, order_type, amount, price)
+
+            # 真实下单
             order_data = await self._execute_with_retry(
                 self.exchange.create_order,
                 mapped_symbol,
@@ -326,7 +386,7 @@ class BinanceRest(BinanceBase):
                 float(price) if price else None,
                 order_params
             )
-            
+
             return self.parse_order(order_data, symbol)
         except Exception as e:
             if self.logger:

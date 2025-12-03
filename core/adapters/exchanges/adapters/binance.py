@@ -212,10 +212,11 @@ class BinanceAdapter(ExchangeAdapter):
         order_type: OrderType,
         amount: Decimal,
         price: Optional[Decimal] = None,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        batch_mode: bool = False  # 🔥 兼容性参数（Binance不使用批量模式）
     ) -> OrderData:
         """创建订单"""
-        order = await self._rest.create_order(symbol, side, order_type, amount, price, params)
+        order = await self._rest.create_order(symbol, side, order_type, amount, price, params, batch_mode)
         
         # 触发订单创建事件
         await self._handle_order_update(order)

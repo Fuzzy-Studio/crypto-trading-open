@@ -167,15 +167,23 @@ class BinanceBase:
                 'recvWindow': 60000
             }
         }
-        
+
         if self.config:
-            config['apiKey'] = getattr(self.config, 'api_key', '')
-            config['secret'] = getattr(self.config, 'api_secret', '')
-            
+            api_key = getattr(self.config, 'api_key', '')
+            api_secret = getattr(self.config, 'api_secret', '')
+
+            # 🔍 调试：打印API密钥长度
+            if self.logger:
+                self.logger.info(f"🔑 API Key length: {len(api_key) if api_key else 0}")
+                self.logger.info(f"🔑 API Secret length: {len(api_secret) if api_secret else 0}")
+
+            config['apiKey'] = api_key
+            config['secret'] = api_secret
+
             if self.testnet:
                 config['sandbox'] = True
                 config['urls'] = {'api': self.base_url}
-        
+
         return config
     
     def set_logger(self, logger):
@@ -232,21 +240,25 @@ class BinanceBase:
             return None
     
     def parse_ticker(self, ticker_data: Dict[str, Any], symbol: str) -> TickerData:
-        """解析行情数据"""
+        """解析行情数据
+
+        CCXT已经标准化了字段名，直接使用CCXT的标准字段
+        """
         return TickerData(
             symbol=symbol,
-            bid=self._safe_decimal(ticker_data.get('bidPrice')),
-            ask=self._safe_decimal(ticker_data.get('askPrice')),
-            last=self._safe_decimal(ticker_data.get('lastPrice')),
-            open=self._safe_decimal(ticker_data.get('openPrice')),
-            high=self._safe_decimal(ticker_data.get('highPrice')),
-            low=self._safe_decimal(ticker_data.get('lowPrice')),
-            close=self._safe_decimal(ticker_data.get('lastPrice')),
-            volume=self._safe_decimal(ticker_data.get('volume')),
+            # CCXT标准化字段 (优先使用)
+            bid=self._safe_decimal(ticker_data.get('bid')),
+            ask=self._safe_decimal(ticker_data.get('ask')),
+            last=self._safe_decimal(ticker_data.get('last')),
+            open=self._safe_decimal(ticker_data.get('open')),
+            high=self._safe_decimal(ticker_data.get('high')),
+            low=self._safe_decimal(ticker_data.get('low')),
+            close=self._safe_decimal(ticker_data.get('close')),
+            volume=self._safe_decimal(ticker_data.get('baseVolume')),
             quote_volume=self._safe_decimal(ticker_data.get('quoteVolume')),
-            change=self._safe_decimal(ticker_data.get('priceChange')),
-            percentage=self._safe_decimal(ticker_data.get('priceChangePercent')),
-            timestamp=datetime.fromtimestamp(ticker_data.get('closeTime', 0) / 1000),
+            change=self._safe_decimal(ticker_data.get('change')),
+            percentage=self._safe_decimal(ticker_data.get('percentage')),
+            timestamp=datetime.fromtimestamp(ticker_data.get('timestamp', 0) / 1000) if ticker_data.get('timestamp') else datetime.now(),
             raw_data=ticker_data
         )
     
